@@ -1,16 +1,16 @@
-import got from 'got';
-import { chunk } from 'lodash';
-import numeral from 'numeral';
+import got from "got";
+import { chunk } from "lodash";
+import numeral from "numeral";
 
-import c from './config.js';
-import log from './log.js';
+import c from "./config.js";
+import log from "./log.js";
 
 export function info() {
   return got(c.npmRegistryEndpoint, {
-    json: true,
+    json: true
   }).then(({ body: { doc_count: nbDocs, update_seq: seq } }) => ({
     nbDocs,
-    seq,
+    seq
   }));
 }
 
@@ -18,7 +18,7 @@ const suppressError = (e, packages) =>
   log.warn(
     `Something went wrong asking the downloads for \n${Array.from(
       packages
-    ).join(',')} \n${e}`
+    ).join(",")} \n${e}`
   );
 
 export function getDownloads(pkgs) {
@@ -26,34 +26,34 @@ export function getDownloads(pkgs) {
   // and do multiple requests to avoid weird cases when concurrency is high
   const encodedPackageNames = pkgs
     .map(pkg => pkg.name)
-    .filter(name => name[0] !== '@' /*downloads for scoped packages fails */)
+    .filter(name => name[0] !== "@" /*downloads for scoped packages fails */)
     .map(name => encodeURIComponent(name));
   const encodedScopedPackageNames = pkgs
     .map(pkg => pkg.name)
-    .filter(name => name[0] === '@')
+    .filter(name => name[0] === "@")
     .map(name => encodeURIComponent(name));
 
   // why do we do this? see https://github.com/npm/registry/issues/104
-  encodedPackageNames.unshift('');
+  encodedPackageNames.unshift("");
   const pkgsNamesChunks = chunk(encodedPackageNames, 100).map(names =>
-    names.join(',')
+    names.join(",")
   );
   return Promise.all([
     got(`${c.npmDownloadsEndpoint}/range/last-month`, {
-      json: true,
+      json: true
     }),
     ...pkgsNamesChunks.map(pkgsNames =>
       got(`${c.npmDownloadsEndpoint}/point/last-month/${pkgsNames}`, {
-        json: true,
+        json: true
       }).catch(e => suppressError(e, pkgsNames))
     ),
     ...encodedScopedPackageNames.map(pkg =>
       got(`${c.npmDownloadsEndpoint}/point/last-month/${pkg}`, {
-        json: true,
+        json: true
       })
-        .then(res => ({ [res.body.package]: res.body }))
+        .then(res => ({ body: { [res.body.package]: res.body } }))
         .catch(e => suppressError(e, [pkg]))
-    ),
+    )
   ]).then(
     (
       [
@@ -69,7 +69,7 @@ export function getDownloads(pkgs) {
       const downloadsPerPkgName = downloadsPerPkgNameChunks.reduce(
         (res, { body: downloadsPerPkgNameChunk }) => ({
           ...res,
-          ...downloadsPerPkgNameChunk,
+          ...downloadsPerPkgNameChunk
         }),
         {}
       );
@@ -91,10 +91,10 @@ export function getDownloads(pkgs) {
           ...popularAttributes,
           downloadsLast30Days,
           humanDownloadsLast30Days: numeral(downloadsLast30Days).format(
-            '0.[0]a'
+            "0.[0]a"
           ),
           downloadsRatio,
-          popular,
+          popular
         };
       });
     }
@@ -109,13 +109,13 @@ export function getDependents(pkgs) {
         query: {
           startKey: JSON.stringify([name]),
           endKey: JSON.stringify([name, {}]),
-          stale: 'update_after',
-        },
+          stale: "update_after"
+        }
       })
         .then(res => res.body.rows[0] || { value: 0 })
         .then(({ value }) => ({
           dependents: value,
-          humanDependents: numeral(value).format('0.[0]a'),
+          humanDependents: numeral(value).format("0.[0]a")
         }))
     )
   );
