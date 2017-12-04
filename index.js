@@ -1,21 +1,21 @@
-import stateManager from './stateManager.js';
-import saveDocs from './saveDocs.js';
-import algoliaIndex from './algoliaIndex.js';
-import c from './config.js';
-import PouchDB from 'pouchdb-http';
-import * as npm from './npm.js';
-import log from './log.js';
-import ms from 'ms';
-import queue from 'async/queue';
+import stateManager from "./stateManager.js";
+import saveDocs from "./saveDocs.js";
+import algoliaIndex from "./algoliaIndex.js";
+import c from "./config.js";
+import PouchDB from "pouchdb-http";
+import * as npm from "./npm.js";
+import log from "./log.js";
+import ms from "ms";
+import queue from "async/queue";
 
-log.info('🗿 npm ↔️ Algolia replication starts ⛷ 🐌 🛰');
+log.info("🗿 npm ↔️ Algolia cookie starts ⛷ 🐌 🛰");
 
 const db = new PouchDB(c.npmRegistryEndpoint);
 const defaultOptions = {
   include_docs: true, // eslint-disable-line camelcase
   conflicts: false,
   attachments: false,
-  return_docs: false, // eslint-disable-line camelcase
+  return_docs: false // eslint-disable-line camelcase
 };
 
 let loopStart = Date.now();
@@ -36,9 +36,7 @@ function infoChange(seq, nbChanges, emoji) {
     const ratePerSecond = nbChanges / ((Date.now() - loopStart) / 1000);
     const remaining = (npmInfo.seq - seq) / ratePerSecond * 1000 || 0;
     log.info(
-      `${
-        emoji
-      } Synced %d/%d changes (%d%), current rate: %d changes/s (%s remaining)`,
+      `${emoji} Synced %d/%d changes (%d%), current rate: %d changes/s (%s remaining)`,
       seq,
       npmInfo.seq,
       Math.floor(Math.max(seq, 1) / npmInfo.seq * 100),
@@ -53,9 +51,7 @@ function infoDocs(offset, nbDocs, emoji) {
   return npm.info().then(({ nbDocs: totalDocs }) => {
     const ratePerSecond = nbDocs / ((Date.now() - loopStart) / 1000);
     log.info(
-      `${
-        emoji
-      } Synced %d/%d docs (%d%), current rate: %d docs/s (%s remaining)`,
+      `${emoji} Synced %d/%d docs (%d%), current rate: %d docs/s (%s remaining)`,
       offset + nbDocs,
       totalDocs,
       Math.floor(Math.max(offset + nbDocs, 1) / totalDocs * 100),
@@ -68,22 +64,22 @@ function infoDocs(offset, nbDocs, emoji) {
 
 function bootstrap(state) {
   if (state.seq > 0 && state.bootstrapDone === true) {
-    log.info('⛷ Bootstrap: done');
+    log.info("⛷ Bootstrap: done");
     return state;
   }
 
   if (state.bootstrapLastId) {
-    log.info('⛷ Bootstrap: starting at doc %s', state.bootstrapLastId);
+    log.info("⛷ Bootstrap: starting at doc %s", state.bootstrapLastId);
     return loop(state.bootstrapLastId);
   } else {
-    log.info('⛷ Bootstrap: starting from the first doc');
+    log.info("⛷ Bootstrap: starting from the first doc");
     return (
       npm
         .info()
         // first time this launches, we need to remember the last seq our bootstrap can trust
         .then(({ seq }) =>
           stateManager.save({
-            seq,
+            seq
           })
         )
         .then(() => loop(state.bootstrapLastId))
@@ -96,21 +92,21 @@ function bootstrap(state) {
         ? {}
         : {
             startkey: lastId,
-            skip: 1,
+            skip: 1
           };
 
     return db
       .allDocs({
         ...defaultOptions,
         ...options,
-        limit: c.bootstrapConcurrency,
+        limit: c.bootstrapConcurrency
       })
       .then(res => {
         if (res.rows.length === 0) {
-          log.info('⛷ Bootstrap: done');
+          log.info("⛷ Bootstrap: done");
           return stateManager.save({
             bootstrapDone: true,
-            bootstrapLastDone: Date.now(),
+            bootstrapLastDone: Date.now()
           });
         }
 
@@ -119,10 +115,10 @@ function bootstrap(state) {
         return saveDocs(res.rows)
           .then(() =>
             stateManager.save({
-              bootstrapLastId: newLastId,
+              bootstrapLastId: newLastId
             })
           )
-          .then(() => infoDocs(res.offset, res.rows.length, '⛷'))
+          .then(() => infoDocs(res.offset, res.rows.length, "⛷"))
           .then(() => loop(newLastId));
       });
   }
@@ -130,7 +126,7 @@ function bootstrap(state) {
 
 function replicate({ seq }) {
   log.info(
-    '🐌 Replicate: Asking for %d changes since sequence %d',
+    "🐌 Replicate: Asking for %d changes since sequence %d",
     c.replicateConcurrency,
     seq
   );
@@ -139,24 +135,24 @@ function replicate({ seq }) {
     .changes({
       ...defaultOptions,
       since: seq,
-      limit: c.replicateConcurrency,
+      limit: c.replicateConcurrency
     })
     .then(res =>
       saveDocs(res.results)
         .then(() =>
           stateManager.save({
-            seq: res.last_seq,
+            seq: res.last_seq
           })
         )
-        .then(() => infoChange(res.last_seq, res.results.length, '🐌'))
+        .then(() => infoChange(res.last_seq, res.results.length, "🐌"))
         .then(() => {
           if (res.results.length < c.replicateConcurrency) {
-            log.info('🐌 Replicate: done');
+            log.info("🐌 Replicate: done");
             return true;
           }
 
           return replicate({
-            seq: res.last_seq,
+            seq: res.last_seq
           });
         })
     );
@@ -164,7 +160,7 @@ function replicate({ seq }) {
 
 function watch({ seq }) {
   log.info(
-    '🛰 Watch: 👍 We are in sync (or almost). Will now be 🔭 watching for registry updates'
+    "🛰 Watch: 👍 We are in sync (or almost). Will now be 🔭 watching for registry updates"
   );
 
   return new Promise((resolve, reject) => {
@@ -173,15 +169,15 @@ function watch({ seq }) {
       since: seq,
       live: true,
       limit: undefined,
-      return_docs: false, // eslint-disable-line camelcase
+      return_docs: false // eslint-disable-line camelcase
     });
 
     const q = queue((change, done) => {
       saveDocs([change])
-        .then(() => infoChange(change.seq, 1, '🛰'))
+        .then(() => infoChange(change.seq, 1, "🛰"))
         .then(() =>
           stateManager.save({
-            seq: change.seq,
+            seq: change.seq
           })
         )
         .then(stateManager.get)
@@ -195,7 +191,7 @@ function watch({ seq }) {
             return stateManager
               .set({
                 seq: 0,
-                bootstrapDone: false,
+                bootstrapDone: false
               })
               .then(() => {
                 process.exit(0); // eslint-disable-line no-process-exit
@@ -208,10 +204,10 @@ function watch({ seq }) {
         .catch(done);
     }, 1);
 
-    changes.on('change', change => {
+    changes.on("change", change => {
       q.push(change);
     });
-    changes.on('error', reject);
+    changes.on("error", reject);
   });
 }
 
